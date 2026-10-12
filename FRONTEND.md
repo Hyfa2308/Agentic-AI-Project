@@ -26,6 +26,7 @@ Proposed contract (adapt to your backend in `src/services/api.ts`):
 - POST `/chat` with `{ conversationId, message }` → ChatResponse
 - GET `/tickets` → Ticket[]
 - PATCH `/tickets/{id}` with `{ status }` → Ticket
+- POST `/api/tickets` with SupportRequestPayload `{ fullName, email, phone, category, subject, description, requestedPriority, productAffected }` → `{ ticketReference (or id), createdAt }`. Attachments are selected locally only; no upload endpoint yet.
 
 JSON field definitions live in `src/types/support.ts`. Message timestamps are ISO 8601. Backend must enable CORS for the frontend origin and implement real AI, authentication, authorization, persistence, validation and idempotent retry behavior. No credentials are sent by this initial unauthenticated client. Use the API service to add your chosen auth once specified.
 

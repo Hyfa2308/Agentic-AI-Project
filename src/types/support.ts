@@ -44,3 +44,34 @@ export interface Ticket {
   conversationId: string;
   escalated: boolean;
 }
+
+export const issueCategories = [
+  "Technical Issue",
+  "Account and Login",
+  "Billing and Payments",
+  "Order or Service-Related Issue",
+  "Bug or Error Report",
+  "Feature Request",
+  "General Inquiry",
+  "Other",
+] as const;
+export type IssueCategory = (typeof issueCategories)[number];
+export const requestedPriorities = ["Low", "Normal", "High", "Urgent"] as const;
+export type RequestedPriority = (typeof requestedPriorities)[number];
+/** Body sent to POST /api/tickets. AI analysis (intent, sentiment, priority, escalation) is computed by the backend later. */
+export interface SupportRequestPayload {
+  fullName: string;
+  email: string;
+  phone: string | null;
+  category: IssueCategory;
+  subject: string;
+  description: string;
+  requestedPriority: RequestedPriority;
+  productAffected: string | null;
+}
+export interface SupportRequestResult {
+  ticketReference: string;
+  /** False when produced by the demo adapter: nothing was saved. */
+  persisted: boolean;
+  createdAt: string;
+}
