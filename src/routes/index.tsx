@@ -60,7 +60,7 @@ function Overview() {
     <div className="page-wrap">
       <PageHeading
         eyebrow="YOUR SUPPORT, AT A GLANCE"
-        title="Welcome back, Alex 👋"
+        title="Welcome back, Alex"
         description="A little intelligence. A lot more connection."
         action={
           <Button variant="outline" onClick={exportReport} className="text-xs bg-card">
