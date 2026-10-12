@@ -1,4 +1,11 @@
-import type { ChatRequest, ChatResponse, Conversation, Ticket } from "@/types/support";
+import type {
+  ChatRequest,
+  ChatResponse,
+  Conversation,
+  SupportRequestPayload,
+  SupportRequestResult,
+  Ticket,
+} from "@/types/support";
 import { demoConversations, demoTickets } from "./mock-data";
 const baseUrl = import.meta.env["VITE_API_BASE_URL"]?.replace(/\/$/, "") ?? "";
 export const isMockMode = import.meta.env["VITE_USE_MOCK_API"] === "true" || !baseUrl;
@@ -98,6 +105,27 @@ export const api = {
     if (!ticket) throw new Error("Ticket not found");
     ticket.status = status;
     return structuredClone(ticket);
+  },
+  submitSupportRequest: async (payload: SupportRequestPayload): Promise<SupportRequestResult> => {
+    if (!isMockMode) {
+      const res = await request<{ ticketReference?: string; id?: string; createdAt?: string }>(
+        "/api/tickets",
+        { method: "POST", body: JSON.stringify(payload) },
+      );
+      const ref = res.ticketReference ?? res.id;
+      if (!ref) throw new Error("The support service did not return a ticket reference.");
+      return { ticketReference: ref, persisted: true, createdAt: res.createdAt ?? new Date().toISOString() };
+    }
+    await pause();
+    if (failNext) {
+      failNext = false;
+      throw new Error("Demo submission failed. Your details are still in the form — please retry.");
+    }
+    return {
+      ticketReference: `DEMO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      persisted: false,
+      createdAt: new Date().toISOString(),
+    };
   },
   simulateError: () => {
     if (isMockMode) failNext = true;
