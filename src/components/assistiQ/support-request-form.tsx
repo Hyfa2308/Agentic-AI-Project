@@ -20,7 +20,7 @@ import {
   type SupportRequestForm as FormValues,
 } from "@/lib/support-request";
 
-type Errors = Partial<Record<keyof FormValues | "attachment", string>>;
+type Errors = Partial<Record<keyof FormValues | "attachment", string | undefined>>;
 const selectClass =
   "border-input bg-background focus-visible:ring-ring/50 focus-visible:border-ring h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px] aria-invalid:border-destructive";
 
