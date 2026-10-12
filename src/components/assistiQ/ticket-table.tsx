@@ -1,0 +1,271 @@
+import { useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { ArrowUpRight, Check, LoaderCircle, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Badge, EmptyState, SectionTitle } from "./shared";
+import { api, isMockMode } from "@/services/api";
+import { demoConversations } from "@/services/mock-data";
+import type { Ticket } from "@/types/support";
+export function TicketTable({
+  tickets,
+  compact = false,
+  agent = false,
+}: {
+  tickets: Ticket[];
+  compact?: boolean;
+  agent?: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("All statuses");
+  const [selected, setSelected] = useState<Ticket>();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const qc = useQueryClient();
+  const filtered = tickets.filter(
+    (t) =>
+      (status === "All statuses" || t.status === status) &&
+      `${t.title} ${t.customer} ${t.id}`.toLowerCase().includes(search.toLowerCase()),
+  );
+  async function update(newStatus: Ticket["status"]) {
+    if (!selected) return;
+    setSaving(true);
+    setError("");
+    try {
+      const updated = await api.updateTicket(selected.id, newStatus);
+      setSelected(updated);
+      await qc.invalidateQueries({ queryKey: ["tickets"] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to update this ticket.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  const conversation = isMockMode
+    ? demoConversations.find((c) => c.id === selected?.conversationId)
+    : undefined;
+  return (
+    <>
+      <section className="table-container">
+        <div className="table-title">
+          <SectionTitle
+            title={
+              compact
+                ? "Recent support activity"
+                : agent
+                  ? "Escalated ticket queue"
+                  : "Your support tickets"
+            }
+            subtitle={
+              compact
+                ? "A pulse on your latest customer conversations."
+                : `${filtered.length} ${agent ? "escalated issues" : "tickets"} in this workspace`
+            }
+          >
+            {compact && (
+              <Button asChild variant="link" className="text-xs h-auto p-0">
+                <Link to="/portal">
+                  View all tickets <ArrowUpRight />
+                </Link>
+              </Button>
+            )}
+          </SectionTitle>
+        </div>
+        {!compact && (
+          <div className="filters">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute size-4 left-3 top-2.5 text-muted-foreground" />
+              <Input
+                aria-label="Search tickets"
+                placeholder="Search tickets or customers…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="filter-input pl-9"
+              />
+            </div>
+            <select
+              aria-label="Filter by status"
+              className="filter-select"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              {["All statuses", "Open", "In progress", "Resolved"].map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="table-scroll">
+          <table className="support-table">
+            <thead>
+              <tr>
+                <th>Ticket / customer</th>
+                <th>Issue</th>
+                <th>Sentiment</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>
+                  <span className="sr-only">Details</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {(compact ? filtered.slice(0, 3) : filtered).map((t) => (
+                <tr key={t.id}>
+                  <td>
+                    <div className="flex items-center gap-9px gap-2.5">
+                      <span className="avatar avatar-small">{t.initials}</span>
+                      <div>
+                        <span className="table-ticket">{t.customer}</span>
+                        <div className="table-sub">#{t.id}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="table-ticket">{t.title}</span>
+                    <div className="table-sub">
+                      {t.category} ·{" "}
+                      {new Date(t.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        timeZone: "UTC",
+                      })}
+                    </div>
+                  </td>
+                  <td>
+                    <Badge>{t.sentiment}</Badge>
+                  </td>
+                  <td>
+                    <span
+                      className={
+                        t.priority === "High" || t.priority === "Urgent"
+                          ? "text-warning"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {t.priority}
+                    </span>
+                  </td>
+                  <td>
+                    <Badge>{t.status}</Badge>
+                  </td>
+                  <td>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`View ${t.id}`}
+                      onClick={() => {
+                        setSelected(t);
+                        setError("");
+                      }}
+                    >
+                      <ArrowUpRight className="size-4" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {filtered.length === 0 && (
+          <EmptyState
+            title="No matching tickets"
+            description="Try a different search or status filter."
+          />
+        )}
+      </section>
+      <Dialog
+        open={Boolean(selected)}
+        onOpenChange={(open) => {
+          if (!open) setSelected(undefined);
+        }}
+      >
+        <DialogContent className="ticket-dialog max-h-[85vh] overflow-auto">
+          {selected && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{selected.title}</DialogTitle>
+                <DialogDescription>
+                  #{selected.id} · {isMockMode ? "Demo ticket" : selected.category}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="detail-grid">
+                <div>
+                  <span className="detail-label">Customer</span>
+                  <strong className="text-sm">{selected.customer}</strong>
+                  <p className="text-xs text-muted-foreground mt-1">{selected.email}</p>
+                </div>
+                <div>
+                  <span className="detail-label">Status</span>
+                  <Badge>{selected.status}</Badge>
+                </div>
+                <div>
+                  <span className="detail-label">Sentiment</span>
+                  <Badge>{selected.sentiment}</Badge>
+                </div>
+                <div>
+                  <span className="detail-label">Priority</span>
+                  <Badge>{selected.priority}</Badge>
+                </div>
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm mb-2">Issue details</h3>
+                <p className="text-sm leading-7 text-muted-foreground">{selected.description}</p>
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm mb-3">Conversation history</h3>
+                {conversation?.messages.map((m) => (
+                  <div key={m.id} className="border-l-2 pl-3 my-3">
+                    <p className="text-xs font-medium mb-1">
+                      {m.role === "user" ? selected.customer : "AssistIQ agent"}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-6">{m.content}</p>
+                  </div>
+                ))}
+                {!conversation && (
+                  <p className="text-sm text-muted-foreground">
+                    Conversation ID: {selected.conversationId}
+                  </p>
+                )}
+                <Button asChild variant="link" className="px-0">
+                  <Link to="/chat">
+                    Open conversation workspace <ArrowUpRight />
+                  </Link>
+                </Button>
+              </div>
+              {error && (
+                <p role="alert" className="text-destructive text-sm">
+                  {error}
+                </p>
+              )}
+              <div className="flex gap-3 justify-end">
+                {selected.status === "Open" && (
+                  <Button variant="outline" disabled={saving} onClick={() => update("In progress")}>
+                    {saving && <LoaderCircle className="animate-spin" />}Start working
+                  </Button>
+                )}
+                {selected.status !== "Resolved" ? (
+                  <Button disabled={saving} onClick={() => update("Resolved")}>
+                    {saving ? <LoaderCircle className="animate-spin" /> : <Check />}Mark resolved
+                  </Button>
+                ) : (
+                  <Button variant="outline" disabled={saving} onClick={() => update("Open")}>
+                    Reopen ticket
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

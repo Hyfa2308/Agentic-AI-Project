@@ -1,0 +1,137 @@
+import { Link } from "@tanstack/react-router";
+import { ArrowUpRight, ArrowRight, Inbox, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
+export function Badge({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const value = String(children);
+  return (
+    <span
+      className={cn(
+        "status-badge",
+        ["High", "Urgent", "Negative", "Open"].includes(value)
+          ? "badge-warning"
+          : ["Resolved", "Positive", "Active"].includes(value)
+            ? "badge-success"
+            : "badge-neutral",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+export function PageHeading({
+  eyebrow,
+  title,
+  description,
+  action,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="page-heading">
+      <div>
+        <p className="eyebrow">{eyebrow}</p>
+        <h1>{title}</h1>
+        <p className="text-muted-foreground mt-2 text-sm">{description}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+export function Stat({
+  label,
+  value,
+  change,
+  icon: Icon,
+  note,
+}: {
+  label: string;
+  value: string;
+  change: string;
+  icon: LucideIcon;
+  note: string;
+}) {
+  return (
+    <div className="stat-card">
+      <div className="flex justify-between items-center">
+        <span className="text-sm text-muted-foreground">{label}</span>
+        <Icon className="size-4 text-muted-foreground" />
+      </div>
+      <div className="flex items-end justify-between gap-2 mt-4">
+        <strong className="text-3xl font-semibold">{value}</strong>
+        <span className="stat-change">
+          <ArrowUpRight className="size-3" />
+          {change}
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground mt-3">{note}</p>
+    </div>
+  );
+}
+export function SectionTitle({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex justify-between items-center gap-4 mb-5">
+      <div>
+        <h2 className="font-semibold text-[16px]">{title}</h2>
+        {subtitle && <p className="text-xs text-muted-foreground mt-1.5">{subtitle}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+export function EmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="py-16 text-center flex flex-col items-center">
+      <Inbox className="size-9 text-muted-foreground mb-4" />
+      <h3 className="font-medium">{title}</h3>
+      <p className="text-sm text-muted-foreground mt-2">{description}</p>
+    </div>
+  );
+}
+export function ExploreLink({
+  to,
+  children,
+}: {
+  to: "/" | "/chat" | "/portal" | "/dashboard" | "/about";
+  children: ReactNode;
+}) {
+  return (
+    <Button asChild variant="link" className="px-0 h-auto">
+      <Link to={to}>
+        {children}
+        <ArrowRight className="size-4" />
+      </Link>
+    </Button>
+  );
+}
+export function PageLoading() {
+  return (
+    <div className="page-wrap animate-pulse">
+      <div className="h-8 w-64 bg-muted rounded mb-8" />
+      <div className="h-80 bg-muted rounded" />
+    </div>
+  );
+}
+export function PageError() {
+  return (
+    <div className="page-wrap">
+      <EmptyState
+        title="Unable to load support data"
+        description="The support service is unavailable. Refresh the page to try again."
+      />
+    </div>
+  );
+}

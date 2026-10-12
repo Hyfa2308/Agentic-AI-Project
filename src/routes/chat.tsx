@@ -1,0 +1,335 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { Plus, MessagesSquare, ArrowUp, Headset, RotateCcw, FlaskConical } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Conversation as ChatConversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputFooter,
+  PromptInputSubmit,
+} from "@/components/ai-elements/prompt-input";
+import { Shimmer } from "@/components/ai-elements/shimmer";
+import { PageHeading, Badge, PageLoading, PageError } from "@/components/assistiQ/shared";
+import { conversationsQuery } from "@/services/queries";
+import { api, isMockMode } from "@/services/api";
+import type { Conversation, ChatMessage } from "@/types/support";
+import { pageHead } from "@/lib/metadata";
+import logo from "@/assets/assistiQ-logo.svg";
+import { cn } from "@/lib/utils";
+export const Route = createFileRoute("/chat")({
+  head: () =>
+    pageHead(
+      "AI web chat",
+      "Talk with the AssistIQ support agent, review conversation histories, and track sentiment and human handoffs.",
+    ),
+  loader: ({ context }) => context.queryClient.ensureQueryData(conversationsQuery),
+  component: Chat,
+  pendingComponent: PageLoading,
+  errorComponent: PageError,
+});
+function Chat() {
+  const { data: initial } = useSuspenseQuery(conversationsQuery);
+  const qc = useQueryClient();
+  const [conversations, setConversations] = useState<Conversation[]>(initial);
+  const [activeId, setActiveId] = useState(initial[0]?.id ?? "");
+  const [draft, setDraft] = useState("");
+  const [pending, setPending] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+  const [retryText, setRetryText] = useState("");
+  const active = conversations.find((c) => c.id === activeId);
+  async function newConversation() {
+    setCreating(true);
+    setError("");
+    try {
+      const conversation = await api.createConversation();
+      setConversations((prev) => [conversation, ...prev]);
+      setActiveId(conversation.id);
+      setDraft("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to create a conversation.");
+    } finally {
+      setCreating(false);
+    }
+  }
+  async function send(text: string, retry = false) {
+    const trimmed = text.trim();
+    if (!trimmed || pending || !active) return;
+    const id = active.id;
+    setPending(true);
+    setError("");
+    setRetryText(trimmed);
+    if (!retry) {
+      const message: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: trimmed,
+        createdAt: new Date().toISOString(),
+      };
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                messages: [...c.messages, message],
+                title: c.messages.length === 0 ? trimmed.slice(0, 40) : c.title,
+              }
+            : c,
+        ),
+      );
+    }
+    setDraft("");
+    try {
+      const response = await api.sendMessage({ conversationId: id, message: trimmed });
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                messages: [...c.messages, response.message],
+                analysis: response.analysis,
+                updatedAt: response.message.createdAt,
+              }
+            : c,
+        ),
+      );
+      void qc.invalidateQueries({ queryKey: ["conversations"] });
+      setRetryText("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The message could not be sent. Please retry.");
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <div className="page-wrap">
+      <PageHeading
+        eyebrow="A CONVERSATION AWAY"
+        title="AI web chat"
+        description="Thoughtful support, whenever you need it."
+        action={
+          isMockMode ? (
+            <span className="demo-mode">
+              <FlaskConical className="size-3.5" />
+              Demo responses
+            </span>
+          ) : undefined
+        }
+      />
+      <div className="chat-layout">
+        <aside className="chat-history" aria-label="Conversation history">
+          <Button
+            variant="outline"
+            className="w-full text-xs mb-6"
+            disabled={pending || creating}
+            onClick={newConversation}
+          >
+            <Plus />
+            <span>{creating ? "Creating…" : "New conversation"}</span>
+          </Button>
+          <p className="nav-label px-0">CONVERSATION HISTORY</p>
+          {conversations.map((c) => (
+            <Button
+              variant="ghost"
+              key={c.id}
+              disabled={pending}
+              className={cn("history-button", c.id === activeId && "history-selected")}
+              onClick={() => {
+                setActiveId(c.id);
+                setError("");
+                setRetryText("");
+                setDraft("");
+              }}
+            >
+              <MessagesSquare className="size-3.5 mt-1" />
+              <div>
+                {c.title}
+                <small className="block text-[9px] text-muted-foreground mt-1">
+                  {new Date(c.updatedAt).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    timeZone: "UTC",
+                  })}
+                </small>
+              </div>
+            </Button>
+          ))}
+        </aside>
+        <div className="chat-main">
+          <div className="chat-header">
+            <img src={logo} alt="" className="chat-logo" />
+            <div>
+              <h2 className="text-sm font-semibold">AssistIQ support agent</h2>
+              <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1.5">
+                <span className="online-dot" />
+                {isMockMode ? "Demo agent" : "Support agent"}
+              </p>
+            </div>
+            <span
+              className="text-[9px] text-muted-foreground ml-auto max-w-32 truncate"
+              title={active?.id}
+            >
+              {active?.id.slice(0, 18)}
+            </span>
+          </div>
+          {active?.analysis && (
+            <div className="analysis-strip">
+              <span>
+                Intent:{" "}
+                <strong className="font-medium text-foreground">{active.analysis.intent}</strong>
+              </span>
+              <span>
+                Sentiment: <Badge>{active.analysis.sentiment}</Badge>
+              </span>
+              <span>
+                Priority: <Badge>{active.analysis.priority}</Badge>
+              </span>
+              <span>
+                Escalation:{" "}
+                <strong className="text-foreground font-medium">
+                  {active.analysis.escalated ? "Triggered" : "Not required"}
+                </strong>
+              </span>
+            </div>
+          )}
+          {active?.analysis?.escalated && (
+            <div className="escalation-banner" role="status">
+              <Headset className="size-4 shrink-0" />
+              <div>
+                <strong className="block mb-1">
+                  Human handoff requested{isMockMode ? " · Demo" : ""}
+                </strong>
+                {active.analysis.handoffStatus}
+              </div>
+            </div>
+          )}
+          <ChatConversation className="chat-transcript">
+            <ConversationContent className="p-6 gap-3">
+              {!active?.messages.length && (
+                <div className="flex flex-col items-center text-center py-10">
+                  <img src={logo} width="48" height="48" alt="AssistIQ" />
+                  <h3 className="font-semibold text-lg mt-5">How can we help today?</h3>
+                  <p className="text-muted-foreground text-xs mt-3">
+                    Billing, orders, or account questions — we’re listening.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2 mt-6">
+                    {["I need help with a payment", "Update my order", "Talk to a human"].map(
+                      (text) => (
+                        <Button
+                          key={text}
+                          variant="outline"
+                          size="sm"
+                          disabled={pending || !active}
+                          onClick={() => send(text)}
+                        >
+                          {text}
+                        </Button>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+              {active?.messages.map((m) => (
+                <Message key={m.id} from={m.role} className="chat-message">
+                  <span className={cn("message-meta", m.role === "user" && "text-right")}>
+                    {m.role === "user" ? "You" : "AssistIQ"} ·{" "}
+                    {new Date(m.createdAt).toLocaleTimeString("en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "UTC",
+                    })}
+                  </span>
+                  <MessageContent
+                    className={
+                      m.role === "user"
+                        ? "group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground"
+                        : ""
+                    }
+                  >
+                    <MessageResponse>{m.content}</MessageResponse>
+                  </MessageContent>
+                </Message>
+              ))}
+              {pending && (
+                <div role="status" className="text-muted-foreground text-xs py-3">
+                  <Shimmer>AssistIQ is thinking…</Shimmer>
+                </div>
+              )}
+              {error && (
+                <div role="alert" className="bg-warning-soft rounded-md p-4 text-xs">
+                  <p className="text-destructive">{error}</p>
+                  {retryText && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3"
+                      onClick={() => send(retryText, true)}
+                      disabled={pending}
+                    >
+                      <RotateCcw />
+                      Retry message
+                    </Button>
+                  )}
+                </div>
+              )}
+            </ConversationContent>
+            <ConversationScrollButton />
+          </ChatConversation>
+          <div className="chat-composer">
+            <PromptInput onSubmit={(message) => send(message.text)}>
+              <PromptInputTextarea
+                aria-label="Message AssistIQ"
+                placeholder="Tell us what’s on your mind…"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                disabled={pending || !active}
+                className="min-h-14 text-sm"
+              />
+              <PromptInputFooter>
+                <span className="text-[9px] text-muted-foreground">
+                  {isMockMode
+                    ? "Demo workspace · Simulated AI responses"
+                    : "AssistIQ customer support"}
+                </span>
+                <PromptInputSubmit
+                  status={pending ? "submitted" : error ? "error" : "ready"}
+                  disabled={pending || !draft.trim() || !active}
+                  aria-label="Send message"
+                  className="size-8"
+                >
+                  {!pending && <ArrowUp className="size-4" />}
+                </PromptInputSubmit>
+              </PromptInputFooter>
+            </PromptInput>
+          </div>
+        </div>
+      </div>
+      {isMockMode && (
+        <div className="flex justify-between items-center gap-4 mt-4">
+          <p className="text-[10px] text-muted-foreground">
+            Demo conversations are temporary. No live AI or specialist is connected.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-[10px] text-muted-foreground"
+            disabled={pending}
+            onClick={() => {
+              api.simulateError();
+              setDraft("I need help with my account");
+            }}
+          >
+            Test error state
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
