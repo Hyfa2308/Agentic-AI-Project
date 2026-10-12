@@ -26,7 +26,7 @@ const selectClass =
 
 function Field({
   id, label, required, error, hint, children,
-}: { id: string; label: string; required?: boolean; error?: string; hint?: ReactNode; children: ReactNode }) {
+}: { id: string; label: string; required?: boolean; error?: string | undefined; hint?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={id}>
