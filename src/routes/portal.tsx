@@ -65,7 +65,9 @@ function Portal() {
           note="Issues successfully closed"
         />
       </div>
-      <SupportRequestForm />
+      <div className="my-6">
+        <SupportRequestForm />
+      </div>
       <div id="ticket-list">
         <TicketTable tickets={tickets} />
       </div>
