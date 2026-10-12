@@ -4,6 +4,7 @@ import { MessageSquarePlus, Ticket, Clock3, CircleCheck, Headset } from "lucide-
 import { Button } from "@/components/ui/button";
 import { PageHeading, Stat, PageLoading, PageError } from "@/components/assistiQ/shared";
 import { TicketTable } from "@/components/assistiQ/ticket-table";
+import { SupportRequestForm } from "@/components/assistiQ/support-request-form";
 import { ticketsQuery } from "@/services/queries";
 import { pageHead } from "@/lib/metadata";
 export const Route = createFileRoute("/portal")({
@@ -64,7 +65,10 @@ function Portal() {
           note="Issues successfully closed"
         />
       </div>
-      <TicketTable tickets={tickets} />
+      <SupportRequestForm />
+      <div id="ticket-list">
+        <TicketTable tickets={tickets} />
+      </div>
     </div>
   );
 }
